@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FotoScene</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&family=Space+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fff;
+  --bg2: #f7f7f7;
+  --fg: #111;
+  --fg2: #555;
+  --fg3: #999;
+  --border: #e8e8e8;
+  --gap: 12px;
+  --row-h: 280px;
+  --nav-h: 52px;
+}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--fg); font-family: 'Space Grotesk', sans-serif; cursor: none; }
+
+/* ── CURSOR ─────────────────────────── */
+#cur { position: fixed; width: 8px; height: 8px; background: #111; border-radius: 50%; pointer-events: none; z-index: 9999; transform: translate(-50%,-50%); transition: width .2s, height .2s; }
+#cur-ring { position: fixed; width: 30px; height: 30px; border: 1px solid rgba(0,0,0,.2); border-radius: 50%; pointer-events: none; z-index: 9998; transform: translate(-50%,-50%); transition: width .32s cubic-bezier(.16,1,.3,1), height .32s cubic-bezier(.16,1,.3,1), opacity .3s; }
+body.ch #cur { width: 5px; height: 5px; }
+body.ch #cur-ring { width: 46px; height: 46px; opacity: .12; }
+
+/* ── NAV ────────────────────────────── */
+nav {
+  position: sticky; top: 0; z-index: 500;
+  height: var(--nav-h); background: #fff;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 24px; gap: 28px;
+}
+.logo { font-size: 17px; font-weight: 600; letter-spacing: -.02em; color: var(--fg); flex-shrink: 0; cursor: none; }
+.logo sup { font-size: 9px; font-weight: 400; vertical-align: super; color: var(--fg3); }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  font-size: 13px; font-weight: 400; color: var(--fg2);
+  background: none; border: none; cursor: none;
+  padding: 5px 11px; border-radius: 6px;
+  transition: background .15s, color .15s;
+}
+.nav-link:hover { background: #f0f0f0; color: var(--fg); }
+.nav-link.active { color: var(--fg); font-weight: 500; }
+.nav-right { margin-left: auto; display: flex; gap: 8px; }
+.lang-btn { font-size: 12px; color: var(--fg3); background: none; border: none; cursor: none; padding: 5px 8px; border-radius: 6px; font-family: 'Space Mono', monospace; transition: background .15s; }
+.lang-btn:hover { background: #f0f0f0; }
+.lang-btn .act { color: var(--fg); font-weight: 700; }
+
+/* ── VIEWS ──────────────────────────── */
+.view { display: none; }
+.view.active { display: block; }
+
+/* ── GALLERY VIEW ──────────────────── */
+.page-header { padding: 24px 24px 12px; display: flex; justify-content: space-between; align-items: flex-end; }
+.page-title { font-size: 20px; font-weight: 600; letter-spacing: -.02em; }
+.page-sub   { font-size: 12px; color: var(--fg3); margin-top: 3px; }
+.tab-row { display: flex; justify-content: center; gap: 2px; padding: 0 24px 20px; }
+.tab-btn { font-size: 13px; font-weight: 400; color: var(--fg2); background: none; border: none; cursor: none; padding: 7px 20px; border-radius: 20px; transition: background .15s, color .15s; }
+.tab-btn:hover { background: #f0f0f0; color: var(--fg); }
+.tab-btn.active { background: var(--fg); color: #fff; }
+
+#grid { padding: 0 24px; display: flex; flex-direction: column; gap: var(--gap); }
+.j-row { display: flex; gap: var(--gap); }
+
+/* photo card */
+.pc { position: relative; overflow: hidden; cursor: none; background: #f0f0f0; opacity: 0; transition: opacity .5s; flex-shrink: 0; }
+.pc.in { opacity: 1; }
+.pc svg { width: 100%; height: 100%; display: block; transition: transform .8s cubic-bezier(.16,1,.3,1); }
+.pc:hover svg { transform: scale(1.03); }
+.pc-overlay { position: absolute; inset: 0; z-index: 2; background: linear-gradient(to top, rgba(0,0,0,.65) 0%, transparent 55%); opacity: 0; transition: opacity .25s; display: flex; flex-direction: column; justify-content: flex-end; padding: 14px 16px; }
+.pc:hover .pc-overlay { opacity: 1; }
+.pc-title { font-size: 13px; font-weight: 500; color: #fff; letter-spacing: -.01em; }
+.pc-meta  { font-size: 11px; color: rgba(255,255,255,.6); margin-top: 2px; }
+.pc-like { position: absolute; top: 10px; right: 10px; z-index: 3; width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,.15); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s, transform .2s; }
+.pc-like svg { width: 13px; height: 13px; fill: none; stroke: #fff; stroke-width: 1.5; }
+.pc:hover .pc-like { opacity: 1; }
+
+/* ── CATEGORIES VIEW ────────────────── */
+#view-categories {
+  min-height: calc(100vh - var(--nav-h));
+  background: var(--bg);
+  padding: 48px 24px 64px;
+}
+.cat-header { text-align: center; margin-bottom: 32px; }
+.cat-header h2 { font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+.cat-header p  { font-size: 13px; color: var(--fg3); margin-top: 8px; }
+.cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 900px; margin: 0 auto 36px; }
+.cat-tile {
+  position: relative; overflow: hidden; cursor: none;
+  border-radius: 4px; aspect-ratio: 4/3;
+  transition: transform .25s cubic-bezier(.16,1,.3,1);
+}
+.cat-tile:hover { transform: scale(1.02); }
+.cat-tile svg { width: 100%; height: 100%; display: block; }
+.cat-tile-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; transition: background .25s; }
+.cat-tile:hover .cat-tile-overlay { background: rgba(0,0,0,.3); }
+.cat-tile.selected .cat-tile-overlay { background: rgba(0,0,0,.25); }
+.cat-tile.selected::after { content: ''; position: absolute; inset: 0; border: 3px solid #fff; border-radius: 4px; pointer-events: none; }
+.cat-tile-name { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: -.01em; }
+.cat-dot { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; background: #e74c3c; border-radius: 50%; display: none; }
+.cat-tile.selected .cat-dot { display: block; }
+.cat-actions { display: flex; gap: 10px; justify-content: center; }
+.btn-skip { padding: 10px 28px; border: 1px solid var(--border); background: #fff; color: var(--fg2); font-size: 13px; border-radius: 24px; cursor: none; transition: background .15s; font-family: 'Space Grotesk', sans-serif; }
+.btn-skip:hover { background: #f5f5f5; }
+.btn-continue { padding: 10px 28px; border: none; background: var(--fg); color: #fff; font-size: 13px; border-radius: 24px; cursor: none; transition: background .15s; font-family: 'Space Grotesk', sans-serif; }
+.btn-continue:hover { background: #333; }
+.cat-count { text-align: center; font-size: 11px; color: var(--fg3); margin-bottom: 24px; }
+
+/* ── DETAIL VIEW ────────────────────── */
+#view-detail { background: var(--bg); }
+.detail-body {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 0;
+  min-height: calc(100vh - var(--nav-h));
+  border-bottom: 1px solid var(--border);
+}
+.detail-photo {
+  position: sticky; top: var(--nav-h);
+  height: calc(100vh - var(--nav-h));
+  overflow: hidden;
+  background: #111;
+  display: flex; align-items: center; justify-content: center;
+}
+.detail-photo svg { width: 100%; height: 100%; object-fit: contain; display: block; }
+.detail-panel {
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.detail-actions { display: flex; gap: 6px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.det-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: 1px solid var(--border); background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: none; transition: border-color .2s, background .2s; flex-shrink: 0;
+}
+.det-btn:hover { border-color: #ccc; background: #f7f7f7; }
+.det-btn svg { width: 15px; height: 15px; fill: none; stroke: var(--fg2); stroke-width: 1.5; }
+.det-btn.liked svg { fill: #e74c3c; stroke: #e74c3c; }
+.det-more { margin-left: auto; font-size: 18px; color: var(--fg3); background: none; border: none; cursor: none; padding: 0 8px; line-height: 36px; }
+
+.detail-info {}
+.detail-title { font-size: 18px; font-weight: 600; letter-spacing: -.02em; margin-bottom: 12px; }
+.detail-stat { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #f5f5f5; font-size: 13px; color: var(--fg2); }
+.detail-stat svg { width: 14px; height: 14px; fill: none; stroke: var(--fg3); stroke-width: 1.5; flex-shrink: 0; }
+.detail-stat span { margin-left: auto; color: var(--fg); font-weight: 500; font-size: 13px; }
+.detail-stat .pulse { color: #27ae60; }
+
+.detail-camera { margin-top: 4px; }
+.detail-camera-title { font-size: 10px; font-weight: 600; color: var(--fg3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px; }
+.camera-tag { display: inline-block; background: #f5f5f5; border-radius: 4px; padding: 4px 9px; font-size: 11px; color: var(--fg2); margin: 2px 2px 2px 0; font-family: 'Space Mono', monospace; }
+
+.detail-follow { padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.follow-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea, #764ba2); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #fff; }
+.follow-name { font-size: 13px; font-weight: 500; }
+.follow-sub  { font-size: 11px; color: var(--fg3); }
+.btn-follow { margin-left: auto; padding: 7px 16px; border: 1px solid var(--border); background: #fff; font-size: 12px; font-weight: 500; border-radius: 20px; cursor: none; transition: background .15s; font-family: 'Space Grotesk', sans-serif; flex-shrink: 0; }
+.btn-follow:hover { background: #f5f5f5; }
+
+/* ── SIMILAR + BELOW ─────────────────── */
+.detail-below { padding: 32px 24px 48px; }
+.section-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px; }
+.section-title { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.view-all { font-size: 12px; color: #3498db; cursor: none; background: none; border: none; font-family: 'Space Grotesk', sans-serif; }
+.similar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.sim-card { position: relative; overflow: hidden; cursor: none; aspect-ratio: 4/3; background: #f0f0f0; }
+.sim-card svg { width: 100%; height: 100%; display: block; transition: transform .6s cubic-bezier(.16,1,.3,1); }
+.sim-card:hover svg { transform: scale(1.04); }
+.sim-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.6) 0%, transparent 50%); opacity: 0; transition: opacity .25s; display: flex; align-items: flex-end; padding: 10px 12px; }
+.sim-card:hover .sim-overlay { opacity: 1; }
+.sim-title { font-size: 11px; font-weight: 500; color: #fff; }
+
+/* ── BACK BTN ────────────────────────── */
+.back-btn { display: flex; align-items: center; gap: 6px; background: none; border: none; cursor: none; font-size: 13px; color: var(--fg2); padding: 0; font-family: 'Space Grotesk', sans-serif; }
+.back-btn:hover { color: var(--fg); }
+.back-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.detail-nav { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 20px; }
+.det-prev, .det-next { width: 30px; height: 30px; border: 1px solid var(--border); background: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: none; transition: background .15s; margin-left: auto; }
+.det-prev { margin-left: auto; }
+.det-next { margin-left: 4px; }
+.det-prev:hover, .det-next:hover { background: #f5f5f5; }
+.det-prev svg, .det-next svg { width: 12px; height: 12px; fill: none; stroke: var(--fg2); stroke-width: 2; }
+
+/* ── FOOTER ──────────────────────────── */
+footer { padding: 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.footer-logo { font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+.footer-r { font-size: 11px; color: var(--fg3); font-family: 'Space Mono', monospace; }
+
+/* ── TWEAKS ──────────────────────────── */
+#tweaks { position: fixed; bottom: 24px; right: 24px; z-index: 5000; background: #fff; border: 1px solid #e0e0e0; box-shadow: 0 4px 24px rgba(0,0,0,.1); padding: 16px 18px; min-width: 190px; display: none; border-radius: 10px; }
+#tweaks.on { display: block; }
+.tw-title { font-size: 11px; font-weight: 600; color: #111; margin-bottom: 14px; }
+.tw-label { font-size: 10px; color: var(--fg3); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 6px; }
+.tw-row { margin-bottom: 12px; }
+input[type=range] { -webkit-appearance: none; width: 100%; height: 2px; background: #ddd; outline: none; cursor: none; border-radius: 2px; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: #111; border-radius: 50%; }
+</style>
+</head>
+<body>
+
+<div id="cur"></div>
+<div id="cur-ring"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="logo" onclick="showView('gallery')" style="cursor:none">FotoScene<sup>PX</sup></div>
+  <div class="nav-links" id="nav-filters">
+    <button class="nav-link active" data-f="all">Todas</button>
+    <button class="nav-link" data-f="paisagem">Paisagem</button>
+    <button class="nav-link" data-f="abstrato">Abstrato</button>
+    <button class="nav-link" data-f="urbano">Urbano</button>
+  </div>
+  <div class="nav-right">
+    <button class="lang-btn" onclick="toggleLang()"><span id="ptl" class="act">PT</span> / <span id="enl">EN</span></button>
+  </div>
+</nav>
+
+<!-- ── VIEW: GALLERY ── -->
+<div class="view active" id="view-gallery">
+  <div class="page-header">
+    <div>
+      <div class="page-title" id="page-title">Fotos em Destaque</div>
+      <div class="page-sub"   id="page-sub">Os trabalhos mais recentes com maior avaliação</div>
+    </div>
+  </div>
+  <div class="tab-row">
+    <button class="tab-btn" onclick="showView('categories')" id="tab-foryou">Para Você</button>
+    <button class="tab-btn active" id="tab-explore">Explorar</button>
+  </div>
+  <div id="grid"></div>
+  <footer>
+    <div class="footer-logo">FotoScene</div>
+    <div class="footer-r" id="fcopy">© 2024 FotoScene · Todos os direitos reservados</div>
+  </footer>
+</div>
+
+<!-- ── VIEW: CATEGORIES ── -->
+<div class="view" id="view-categories">
+  <div style="padding:48px 24px 64px">
+    <div class="cat-header">
+      <h2 id="cat-h">Selecionar categorias</h2>
+      <p id="cat-p">Personalize o seu feed escolhendo até 5 categorias</p>
+    </div>
+    <div class="cat-count" id="cat-count">0 / 5 selecionadas</div>
+    <div class="cat-grid" id="cat-grid"></div>
+    <div class="cat-actions">
+      <button class="btn-skip" onclick="showView('gallery')" id="btn-skip">Ignorar</button>
+      <button class="btn-continue" onclick="showView('gallery')" id="btn-continue">Continuar</button>
+    </div>
+  </div>
+  <footer>
+    <div class="footer-logo">FotoScene</div>
+    <div class="footer-r" id="fcopy2">© 2024 FotoScene · Todos os direitos reservados</div>
+  </footer>
+</div>
+
+<!-- ── VIEW: DETAIL ── -->
+<div class="view" id="view-detail">
+  <div class="detail-nav">
+    <button class="back-btn" onclick="showView('gallery')">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      <span id="back-label">Voltar</span>
+    </button>
+    <button class="det-prev" onclick="detailNav(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    <button class="det-next" onclick="detailNav(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+  </div>
+
+  <div class="detail-body">
+    <!-- Left: photo -->
+    <div class="detail-photo" id="detail-photo"></div>
+
+    <!-- Right: panel -->
+    <div class="detail-panel">
+      <div class="detail-follow">
+        <div class="follow-avatar" id="det-avatar">F</div>
+        <div>
+          <div class="follow-name">FotoScene</div>
+          <div class="follow-sub" id="det-loc-small"></div>
+        </div>
+        <button class="btn-follow" id="btn-follow-tog" onclick="toggleFollow(this)">Seguir</button>
+      </div>
+
+      <div class="detail-actions">
+        <button class="det-btn" id="btn-like" onclick="toggleLike(this)" title="Curtir">
+          <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </button>
+        <button class="det-btn" title="Partilhar">
+          <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
+        <button class="det-btn" title="Colecionar">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        </button>
+        <button class="det-more">···</button>
+      </div>
+
+      <div class="detail-info">
+        <div class="detail-title" id="det-title"></div>
+        <div class="detail-stat">
+          <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <div id="det-loc"></div>
+        </div>
+        <div class="detail-stat">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <div id="det-date"></div>
+        </div>
+        <div class="detail-stat">
+          <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <div id="det-likes"></div>
+          <span id="det-likes-n">—</span>
+        </div>
+        <div class="detail-stat">
+          <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <div id="det-impr-label">Impressões</div>
+          <span id="det-impr">—</span>
+        </div>
+        <div class="detail-stat">
+          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <div>Pulse</div>
+          <span id="det-pulse" class="pulse">—</span>
+        </div>
+      </div>
+
+      <div class="detail-camera">
+        <div class="detail-camera-title" id="det-cam-label">Câmera</div>
+        <span class="camera-tag" id="det-cam1"></span>
+        <span class="camera-tag" id="det-cam2"></span>
+        <span class="camera-tag" id="det-cam3"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Similar photos -->
+  <div class="detail-below">
+    <div class="section-row">
+      <div class="section-title" id="sim-title">Fotos Semelhantes</div>
+      <button class="view-all" id="sim-all">Ver tudo ›</button>
+    </div>
+    <div class="similar-grid" id="sim-grid"></div>
+  </div>
+
+  <footer>
+    <div class="footer-logo">FotoScene</div>
+    <div class="footer-r" id="fcopy3">© 2024 FotoScene · Todos os direitos reservados</div>
+  </footer>
+</div>
+
+<!-- TWEAKS -->
+<div id="tweaks">
+  <div class="tw-title">Tweaks</div>
+  <div class="tw-row">
+    <div class="tw-label">Altura das linhas</div>
+    <input type="range" min="160" max="400" step="20" value="280" oninput="setRowH(this.value)">
+  </div>
+  <div class="tw-row">
+    <div class="tw-label">Espaço entre fotos</div>
+    <input type="range" min="0" max="16" step="2" value="12" oninput="setGap(this.value)">
+  </div>
+</div>
+
+<script>
+// ── DATA ───────────────────────────────────────────────────────
+const photos = [
+  { title:{pt:'Névoa de Montanha',en:'Mountain Mist'}, loc:'Serra da Mantiqueira', cat:'paisagem', ratio:1.6, likes:328, impr:'14.2K', pulse:98.2, date:'12 Abr 2024', cam:['Sony A7R V','FE 24-70mm','f/8 · ISO 100'],
+    svg:`<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="s1a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b8fa8"/><stop offset="1" stop-color="#c8d8e8"/></linearGradient><linearGradient id="s1b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a6a7a"/><stop offset="1" stop-color="#2a3a44"/></linearGradient></defs><rect width="800" height="500" fill="url(#s1a)"/><polygon points="0,380 150,200 280,290 400,140 530,240 680,150 800,200 800,500 0,500" fill="url(#s1b)"/><polygon points="0,430 100,310 240,370 380,260 510,330 660,250 800,290 800,500 0,500" fill="#1e2c34"/><rect y="280" width="800" height="60" fill="rgba(200,220,240,.2)"/></svg>` },
+  { title:{pt:'Pássaros na Primavera',en:'Spring Birds'}, loc:'Parque Nacional', cat:'paisagem', ratio:1.05, likes:215, impr:'9.8K', pulse:94.1, date:'8 Abr 2024', cam:['Canon R6 II','RF 100-400mm','f/5.6 · ISO 400'],
+    svg:`<svg viewBox="0 0 500 480" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><rect width="500" height="480" fill="#d8eecc"/><ellipse cx="250" cy="300" rx="200" ry="180" fill="#b8d4a0" opacity=".7"/><rect y="380" width="500" height="100" fill="#5a8a4a" opacity=".4"/><circle cx="250" cy="280" r="20" fill="#3a6a30" opacity=".5"/><circle cx="180" cy="250" r="10" fill="#3a6a30" opacity=".4"/><circle cx="320" cy="260" r="14" fill="#3a6a30" opacity=".4"/><rect x="240" y="180" width="20" height="100" fill="#6a4a2a" opacity=".5"/></svg>` },
+  { title:{pt:'Espiral Metálica',en:'Metal Spiral'}, loc:'Studio Series', cat:'abstrato', ratio:1.0, likes:412, impr:'18.5K', pulse:99.1, date:'5 Abr 2024', cam:['Sony A7R V','Macro 90mm','f/11 · ISO 50'],
+    svg:`<svg viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><rect width="480" height="480" fill="#1a1a1e"/><circle cx="240" cy="240" r="200" fill="none" stroke="#888" stroke-width="1" opacity=".3"/><circle cx="240" cy="240" r="155" fill="none" stroke="#999" stroke-width="2" opacity=".4"/><circle cx="240" cy="240" r="110" fill="none" stroke="#aaa" stroke-width="3" opacity=".5"/><circle cx="240" cy="240" r="70" fill="none" stroke="#bbb" stroke-width="4" opacity=".6"/><circle cx="240" cy="240" r="38" fill="none" stroke="#ccc" stroke-width="5" opacity=".7"/><circle cx="240" cy="240" r="15" fill="#ddd" opacity=".8"/><line x1="40" y1="240" x2="440" y2="240" stroke="#666" stroke-width=".5" opacity=".4"/><line x1="240" y1="40" x2="240" y2="440" stroke="#666" stroke-width=".5" opacity=".4"/></svg>` },
+  { title:{pt:'Flores Silvestres',en:'Wild Flowers'}, loc:'Vale do Ribeira', cat:'paisagem', ratio:1.1, likes:187, impr:'7.3K', pulse:91.8, date:'3 Abr 2024', cam:['Nikon Z8','Macro 105mm','f/4 · ISO 200'],
+    svg:`<svg viewBox="0 0 550 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><rect width="550" height="500" fill="#f5e8f0"/><ellipse cx="275" cy="350" rx="240" ry="160" fill="#e8c4d8" opacity=".5"/><circle cx="200" cy="260" r="30" fill="#d870a8" opacity=".6"/><circle cx="200" cy="260" r="12" fill="#fff" opacity=".8"/><circle cx="330" cy="240" r="24" fill="#e07898" opacity=".6"/><circle cx="330" cy="240" r="10" fill="#fff" opacity=".8"/><circle cx="150" cy="320" r="20" fill="#b860a0" opacity=".5"/><circle cx="150" cy="320" r="8" fill="#fff" opacity=".8"/><circle cx="400" cy="300" r="26" fill="#d06890" opacity=".6"/><circle cx="400" cy="300" r="11" fill="#fff" opacity=".8"/></svg>` },
+  { title:{pt:'Tempestade Distante',en:'Distant Storm'}, loc:'Pantanal, BR', cat:'paisagem', ratio:1.3, likes:503, impr:'22.1K', pulse:99.5, date:'1 Abr 2024', cam:['Canon R5','RF 15-35mm','f/8 · ISO 400'],
+    svg:`<svg viewBox="0 0 650 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="s5a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3a4a"/><stop offset=".5" stop-color="#6a6a7a"/><stop offset="1" stop-color="#8a8a90"/></linearGradient></defs><rect width="650" height="500" fill="url(#s5a)"/><polygon points="0,420 650,420 650,500 0,500" fill="#2a2828"/><polygon points="0,410 650,410 650,500 0,500" fill="#222020"/><line x1="280" y1="200" x2="320" y2="380" stroke="rgba(255,255,200,.6)" stroke-width="2"/><line x1="300" y1="250" x2="330" y2="380" stroke="rgba(255,255,200,.3)" stroke-width="1"/></svg>` },
+  { title:{pt:'Moinhos ao Pôr do Sol',en:'Windmills at Sunset'}, loc:'Portugal', cat:'paisagem', ratio:1.55, likes:276, impr:'11.4K', pulse:96.3, date:'28 Mar 2024', cam:['Sony A7C II','FE 70-200mm','f/5.6 · ISO 100'],
+    svg:`<svg viewBox="0 0 780 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="s6a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8c42"/><stop offset=".4" stop-color="#ffb347"/><stop offset="1" stop-color="#c0392b"/></linearGradient></defs><rect width="780" height="500" fill="url(#s6a)"/><circle cx="390" cy="180" r="80" fill="rgba(255,220,100,.6)"/><polygon points="380,340 400,340 395,180 385,180" fill="#2c2c3a" opacity=".9"/><line x1="390" y1="200" x2="360" y2="150" stroke="#2c2c3a" stroke-width="5" opacity=".9"/><line x1="390" y1="200" x2="430" y2="170" stroke="#2c2c3a" stroke-width="5" opacity=".9"/><line x1="390" y1="200" x2="420" y2="250" stroke="#2c2c3a" stroke-width="5" opacity=".9"/><line x1="390" y1="200" x2="350" y2="230" stroke="#2c2c3a" stroke-width="5" opacity=".9"/></svg>` },
+  { title:{pt:'Reflexo Costeiro',en:'Coastal Reflection'}, loc:'Florianópolis, BR', cat:'paisagem', ratio:1.5, likes:341, impr:'15.8K', pulse:97.4, date:'25 Mar 2024', cam:['Fujifilm GFX100S','GF 23mm','f/11 · ISO 100'],
+    svg:`<svg viewBox="0 0 750 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="s7a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7eb8d8"/><stop offset=".5" stop-color="#4888b8"/><stop offset="1" stop-color="#234868"/></linearGradient></defs><rect width="750" height="500" fill="url(#s7a)"/><rect y="250" width="750" height="250" fill="rgba(70,120,160,.5)"/><line x1="0" y1="250" x2="750" y2="250" stroke="rgba(255,255,255,.4)" stroke-width="1"/><circle cx="375" cy="130" r="50" fill="rgba(255,240,180,.5)"/><polygon points="0,260 160,200 300,240 450,180 600,230 750,200 750,500 0,500" fill="rgba(30,60,90,.6)"/></svg>` },
+  { title:{pt:'Árvore Solitária',en:'Lone Tree'}, loc:'Campos Gerais, BR', cat:'paisagem', ratio:1.2, likes:198, impr:'8.9K', pulse:93.7, date:'22 Mar 2024', cam:['Leica M11','Summilux 35mm','f/2 · ISO 200'],
+    svg:`<svg viewBox="0 0 600 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="s8a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ccd8e8"/><stop offset=".7" stop-color="#8898a8"/></linearGradient></defs><rect width="600" height="500" fill="url(#s8a)"/><rect y="380" width="600" height="120" fill="#3a3228"/><rect x="285" y="180" width="30" height="200" fill="#2a1e10"/><ellipse cx="300" cy="160" rx="80" ry="90" fill="#1a1a1a"/><ellipse cx="260" cy="190" rx="55" ry="65" fill="#111"/><ellipse cx="340" cy="185" rx="60" ry="70" fill="#151515"/></svg>` },
+  { title:{pt:'Deriva Abstrata',en:'Abstract Drift'}, loc:'Studio Series', cat:'abstrato', ratio:1.4, likes:389, impr:'17.2K', pulse:98.8, date:'18 Mar 2024', cam:['Sony A7R V','85mm f/1.4','f/1.8 · ISO 100'],
+    svg:`<svg viewBox="0 0 700 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><defs><radialGradient id="s9a" cx="40%" cy="50%" r="60%"><stop offset="0" stop-color="#7040c0"/><stop offset="1" stop-color="#1a0a40"/></radialGradient><radialGradient id="s9b" cx="70%" cy="60%" r="50%"><stop offset="0" stop-color="#40a0d0"/><stop offset="1" stop-color="transparent"/></radialGradient></defs><rect width="700" height="500" fill="#0a0818"/><rect width="700" height="500" fill="url(#s9a)" opacity=".8"/><rect width="700" height="500" fill="url(#s9b)" opacity=".5"/><circle cx="280" cy="220" r="150" fill="none" stroke="rgba(160,100,255,.2)" stroke-width="1"/><circle cx="280" cy="220" r="100" fill="none" stroke="rgba(160,100,255,.15)" stroke-width="1"/></svg>` },
+  { title:{pt:'Flor Exótica',en:'Exotic Flower'}, loc:'Jardim Botânico, RJ', cat:'paisagem', ratio:1.05, likes:154, impr:'6.7K', pulse:90.4, date:'15 Mar 2024', cam:['Canon R6 II','Macro 100mm','f/5.6 · ISO 160'],
+    svg:`<svg viewBox="0 0 500 480" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><rect width="500" height="480" fill="#e8f4e0"/><circle cx="250" cy="240" r="120" fill="#a8d870" opacity=".4"/><ellipse cx="250" cy="180" rx="50" ry="80" fill="#40b060" opacity=".7"/><ellipse cx="200" cy="260" rx="50" ry="80" transform="rotate(60 200 260)" fill="#50b870" opacity=".6"/><ellipse cx="300" cy="260" rx="50" ry="80" transform="rotate(-60 300 260)" fill="#48a868" opacity=".6"/><circle cx="250" cy="240" r="30" fill="#f0e060"/><circle cx="250" cy="240" r="14" fill="#c08820"/></svg>` },
+  { title:{pt:'Pulso Digital',en:'Digital Pulse'}, loc:'Studio Series', cat:'abstrato', ratio:1.9, likes:467, impr:'20.3K', pulse:99.4, date:'12 Mar 2024', cam:['Sony A7R V','24mm f/1.4','f/2 · ISO 50'],
+    svg:`<svg viewBox="0 0 950 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><rect width="950" height="500" fill="#080810"/><path d="M0,250 L150,250 L185,120 L220,380 L255,150 L290,340 L325,250 L500,250 L540,80 L580,420 L615,140 L650,330 L685,250 L950,250" stroke="rgba(80,200,255,.7)" stroke-width="2" fill="none"/><path d="M0,250 L150,250 L185,120 L220,380 L255,150 L290,340 L325,250 L500,250 L540,80 L580,420 L615,140 L650,330 L685,250 L950,250" stroke="rgba(80,200,255,.15)" stroke-width="14" fill="none"/></svg>` },
+  { title:{pt:'Janela Circular',en:'Circular Window'}, loc:'Architecture, Lisboa', cat:'urbano', ratio:1.1, likes:223, impr:'10.1K', pulse:95.6, date:'9 Mar 2024', cam:['Canon R5','RF 50mm','f/8 · ISO 100'],
+    svg:`<svg viewBox="0 0 550 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice"><rect width="550" height="500" fill="#d8d0c8"/><rect x="100" y="80" width="350" height="340" fill="#b8b0a8"/><circle cx="275" cy="250" r="130" fill="#e8e8f0"/><circle cx="275" cy="250" r="120" fill="#6888b8" opacity=".3"/><circle cx="275" cy="250" r="120" fill="none" stroke="#8898a8" stroke-width="8"/><line x1="275" y1="130" x2="275" y2="370" stroke="#8898a8" stroke-width="3" opacity=".5"/><line x1="155" y1="250" x2="395" y2="250" stroke="#8898a8" stroke-width="3" opacity=".5"/></svg>` },
+];
+
+const categories = [
+  { name:{pt:'Paisagem',en:'Landscapes'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="c1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8fa8"/><stop offset="1" stop-color="#2a5a6a"/></linearGradient></defs><rect width="400" height="300" fill="url(#c1)"/><polygon points="0,220 80,130 160,180 240,90 320,160 400,110 400,300 0,300" fill="#1a3a44"/><polygon points="0,255 100,200 200,230 320,175 400,210 400,300 0,300" fill="#0f2830"/></svg>` },
+  { name:{pt:'Natureza',en:'Nature'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#2d5a27"/><rect y="220" width="400" height="80" fill="#1a3a18"/><circle cx="200" cy="180" r="100" fill="#3a7a30" opacity=".8"/><rect x="185" y="80" width="30" height="220" fill="#2a4a20"/></svg>` },
+  { name:{pt:'Cidade',en:'City and Architecture'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#1a1a2a"/><rect x="20" y="80" width="50" height="220" fill="#2a2a3a"/><rect x="90" y="120" width="40" height="180" fill="#222232"/><rect x="150" y="60" width="60" height="240" fill="#2e2e3e"/><rect x="230" y="100" width="45" height="200" fill="#242434"/><rect x="295" y="70" width="55" height="230" fill="#282838"/><rect x="360" y="130" width="40" height="170" fill="#1e1e2e"/></svg>` },
+  { name:{pt:'Animais',en:'Animals'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#3a4a2a"/><rect y="240" width="400" height="60" fill="#2a3a1a"/><circle cx="200" cy="140" r="60" fill="#5a6a4a" opacity=".6"/></svg>` },
+  { name:{pt:'Preto e Branco',en:'Black and White'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#1a1a1a"/><rect x="0" y="0" width="200" height="300" fill="rgba(255,255,255,.03)"/><line x1="0" y1="150" x2="400" y2="150" stroke="rgba(255,255,255,.08)" stroke-width="1"/><line x1="200" y1="0" x2="200" y2="300" stroke="rgba(255,255,255,.08)" stroke-width="1"/></svg>` },
+  { name:{pt:'Pessoas',en:'People'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#2a1a1a"/><circle cx="200" cy="110" r="55" fill="#4a2a2a" opacity=".8"/><ellipse cx="200" cy="240" rx="90" ry="70" fill="#3a2020" opacity=".7"/></svg>` },
+  { name:{pt:'Macro',en:'Macro'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="300" fill="#1a2a1a"/><circle cx="200" cy="150" r="80" fill="#3a6a30" opacity=".4"/><circle cx="200" cy="150" r="50" fill="#5a9a45" opacity=".5"/><circle cx="200" cy="150" r="25" fill="#f0e060"/></svg>` },
+  { name:{pt:'Arte',en:'Fine Art'}, svg:`<svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg"><defs><radialGradient id="fa" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="#6030a0"/><stop offset="1" stop-color="#100820"/></radialGradient></defs><rect width="400" height="300" fill="url(#fa)"/><circle cx="200" cy="150" r="100" fill="none" stroke="rgba(200,150,255,.2)" stroke-width="1"/><circle cx="200" cy="150" r="60" fill="none" stroke="rgba(200,150,255,.15)" stroke-width="1"/></svg>` },
+];
+
+// ── STATE ─────────────────────────────────────────────────────
+let lang = localStorage.getItem('fs-lang') || 'pt';
+let filter = 'all';
+let rowH = 280;
+let gap = 12;
+let visible = [...photos];
+let curDetail = 0;
+let selectedCats = new Set();
+
+// ── VIEWS ─────────────────────────────────────────────────────
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  window.scrollTo(0, 0);
+  if (v === 'gallery') {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-explore').classList.add('active');
+  }
+}
+
+// ── GALLERY ───────────────────────────────────────────────────
+function buildGrid() {
+  const container = document.getElementById('grid');
+  container.innerHTML = '';
+  visible = filter === 'all' ? photos : photos.filter(p => p.cat === filter);
+  const W = container.clientWidth - 48;
+  const rows = [];
+  let row = [], rrs = 0;
+  visible.forEach((p, i) => {
+    row.push({ photo:p, idx:i });
+    rrs += p.ratio;
+    if (W / rrs <= rowH || i === visible.length - 1) {
+      rows.push({ items:[...row], rrs });
+      row = []; rrs = 0;
+    }
+  });
+  rows.forEach((r, ri) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'j-row';
+    const isLast = ri === rows.length - 1;
+    const h = isLast && r.items.length < 3 ? rowH : Math.min(rowH, W / r.rrs);
+    r.items.forEach(({ photo:p, idx:i }) => {
+      const w = Math.floor(h * p.ratio);
+      const card = document.createElement('div');
+      card.className = 'pc';
+      card.style.cssText = `width:${w}px;height:${h}px`;
+      card.innerHTML = `${p.svg}
+        <div class="pc-like"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
+        <div class="pc-overlay"><div class="pc-title">${p.title[lang]}</div><div class="pc-meta">${p.loc}</div></div>`;
+      card.addEventListener('click', () => openDetail(i));
+      card.addEventListener('mouseenter', () => document.body.classList.add('ch'));
+      card.addEventListener('mouseleave', () => document.body.classList.remove('ch'));
+      rowEl.appendChild(card);
+      setTimeout(() => card.classList.add('in'), 40 + i * 45);
+    });
+    container.appendChild(rowEl);
+  });
+}
+window.addEventListener('resize', buildGrid);
+
+// ── DETAIL ────────────────────────────────────────────────────
+function openDetail(i) {
+  curDetail = i;
+  renderDetail();
+  showView('detail');
+}
+function detailNav(d) {
+  curDetail = (curDetail + d + visible.length) % visible.length;
+  renderDetail();
+}
+function renderDetail() {
+  const p = visible[curDetail];
+  const photoEl = document.getElementById('detail-photo');
+  photoEl.innerHTML = p.svg;
+  photoEl.querySelector('svg').style.cssText = 'width:100%;height:100%;display:block;';
+  document.getElementById('det-title').textContent = p.title[lang];
+  document.getElementById('det-loc').textContent   = p.loc;
+  document.getElementById('det-loc-small').textContent = p.loc;
+  document.getElementById('det-date').textContent  = p.date || '—';
+  document.getElementById('det-likes').textContent = lang==='pt' ? 'Curtidas' : 'Likes';
+  document.getElementById('det-likes-n').textContent = p.likes;
+  document.getElementById('det-impr-label').textContent = lang==='pt' ? 'Impressões' : 'Impressions';
+  document.getElementById('det-impr').textContent  = p.impr;
+  document.getElementById('det-pulse').textContent = p.pulse;
+  document.getElementById('det-cam-label').textContent = lang==='pt' ? 'Câmera' : 'Camera';
+  if (p.cam) { document.getElementById('det-cam1').textContent=p.cam[0]; document.getElementById('det-cam2').textContent=p.cam[1]; document.getElementById('det-cam3').textContent=p.cam[2]; }
+  // similar photos
+  const sg = document.getElementById('sim-grid');
+  sg.innerHTML = '';
+  const sims = visible.filter((_,j) => j !== curDetail).slice(0, 8);
+  sims.forEach((s, si) => {
+    const card = document.createElement('div');
+    card.className = 'sim-card';
+    card.innerHTML = `${s.svg}<div class="sim-overlay"><div class="sim-title">${s.title[lang]}</div></div>`;
+    card.addEventListener('click', () => { const idx = visible.indexOf(s); if(idx>=0){ curDetail=idx; renderDetail(); window.scrollTo(0,0); }});
+    card.addEventListener('mouseenter', () => document.body.classList.add('ch'));
+    card.addEventListener('mouseleave', () => document.body.classList.remove('ch'));
+    sg.appendChild(card);
+  });
+  document.getElementById('sim-title').textContent = lang==='pt' ? 'Fotos Semelhantes' : 'Similar Photos';
+  document.getElementById('sim-all').textContent   = lang==='pt' ? 'Ver tudo ›' : 'View all ›';
+  document.getElementById('back-label').textContent = lang==='pt' ? 'Voltar' : 'Back';
+  document.getElementById('btn-like').classList.remove('liked');
+}
+function toggleLike(btn) { btn.classList.toggle('liked'); }
+function toggleFollow(btn) {
+  const isFollowing = btn.textContent === (lang==='pt' ? 'A Seguir' : 'Following');
+  btn.textContent = isFollowing ? (lang==='pt' ? 'Seguir' : 'Follow') : (lang==='pt' ? 'A Seguir' : 'Following');
+  btn.style.background = isFollowing ? '' : '#111';
+  btn.style.color = isFollowing ? '' : '#fff';
+  btn.style.borderColor = isFollowing ? '' : '#111';
+}
+
+// ── CATEGORIES ────────────────────────────────────────────────
+function buildCategories() {
+  const cg = document.getElementById('cat-grid');
+  cg.innerHTML = '';
+  categories.forEach((c, i) => {
+    const tile = document.createElement('div');
+    tile.className = 'cat-tile';
+    tile.innerHTML = `${c.svg}<div class="cat-tile-overlay"><div class="cat-tile-name">${c.name[lang]}</div></div><div class="cat-dot"></div>`;
+    tile.addEventListener('click', () => {
+      if (selectedCats.has(i)) { selectedCats.delete(i); tile.classList.remove('selected'); }
+      else if (selectedCats.size < 5) { selectedCats.add(i); tile.classList.add('selected'); }
+      document.getElementById('cat-count').textContent = lang==='pt'
+        ? `${selectedCats.size} / 5 selecionadas`
+        : `${selectedCats.size} / 5 selected`;
+    });
+    tile.addEventListener('mouseenter', () => document.body.classList.add('ch'));
+    tile.addEventListener('mouseleave', () => document.body.classList.remove('ch'));
+    cg.appendChild(tile);
+  });
+}
+
+// ── FILTERS ───────────────────────────────────────────────────
+document.getElementById('nav-filters').addEventListener('click', e => {
+  const btn = e.target.closest('.nav-link');
+  if (!btn) return;
+  document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  filter = btn.dataset.f;
+  buildGrid();
+});
+
+// ── LANG ──────────────────────────────────────────────────────
+const c = {
+  pt:{ title:'Fotos em Destaque', sub:'Os trabalhos mais recentes', tab1:'Para Você', tab2:'Explorar', skip:'Ignorar', cont:'Continuar', catH:'Selecionar categorias', catP:'Personalize o seu feed escolhendo até 5 categorias', catC:'0 / 5 selecionadas', footer:'© 2024 FotoScene · Todos os direitos reservados' },
+  en:{ title:'Featured Photos', sub:'The latest top-rated works', tab1:'For You', tab2:'Explore', skip:'Skip', cont:'Continue', catH:'Select categories', catP:'Customize your feed by choosing up to 5 categories', catC:'0 / 5 selected', footer:'© 2024 FotoScene · All rights reserved' },
+};
+function applyLang() {
+  const t = c[lang];
+  document.getElementById('page-title').textContent = t.title;
+  document.getElementById('page-sub').textContent   = t.sub;
+  document.getElementById('tab-foryou').textContent  = t.tab1;
+  document.getElementById('tab-explore').textContent = t.tab2;
+  document.getElementById('btn-skip').textContent    = t.skip;
+  document.getElementById('btn-continue').textContent = t.cont;
+  document.getElementById('cat-h').textContent = t.catH;
+  document.getElementById('cat-p').textContent = t.catP;
+  document.getElementById('cat-count').textContent = lang==='pt' ? `${selectedCats.size} / 5 selecionadas` : `${selectedCats.size} / 5 selected`;
+  ['fcopy','fcopy2','fcopy3'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=t.footer; });
+  document.getElementById('ptl').className = lang==='pt'?'act':'';
+  document.getElementById('enl').className = lang==='en'?'act':'';
+  document.querySelectorAll('.pc-title').forEach((el,i) => { if(visible[i]) el.textContent=visible[i].title[lang]; });
+}
+function toggleLang() {
+  lang = lang==='pt'?'en':'pt';
+  localStorage.setItem('fs-lang', lang);
+  applyLang();
+  buildCategories();
+}
+
+// ── CURSOR ────────────────────────────────────────────────────
+const cur = document.getElementById('cur');
+const ring = document.getElementById('cur-ring');
+let mx=-100,my=-100,rx=-100,ry=-100;
+document.addEventListener('mousemove', e => { mx=e.clientX; my=e.clientY; });
+(function tick() {
+  cur.style.cssText=`left:${mx}px;top:${my}px`;
+  rx+=(mx-rx)*.1; ry+=(my-ry)*.1;
+  ring.style.cssText=`left:${rx}px;top:${ry}px`;
+  requestAnimationFrame(tick);
+})();
+document.querySelectorAll('button, .cat-tile, .sim-card').forEach(b => {
+  b.addEventListener('mouseenter', () => document.body.classList.add('ch'));
+  b.addEventListener('mouseleave', () => document.body.classList.remove('ch'));
+});
+
+// ── TWEAKS ────────────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "rowH": 280,
+  "gap": 12
+}/*EDITMODE-END*/;
+function setRowH(v) { rowH=parseInt(v); buildGrid(); window.parent.postMessage({type:'__edit_mode_set_keys',edits:{rowH:parseInt(v)}},'*'); }
+function setGap(v)  { gap=parseInt(v); document.documentElement.style.setProperty('--gap',v+'px'); window.parent.postMessage({type:'__edit_mode_set_keys',edits:{gap:parseInt(v)}},'*'); }
+window.addEventListener('message', e => {
+  if (e.data?.type==='__activate_edit_mode')   document.getElementById('tweaks').classList.add('on');
+  if (e.data?.type==='__deactivate_edit_mode') document.getElementById('tweaks').classList.remove('on');
+});
+window.parent.postMessage({type:'__edit_mode_available'},'*');
+
+// ── INIT ──────────────────────────────────────────────────────
+buildGrid();
+buildCategories();
+applyLang();
+</script>
+</body>
+</html>
